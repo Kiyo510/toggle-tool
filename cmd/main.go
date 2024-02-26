@@ -73,6 +73,7 @@ func main() {
 	requestData := TimeEntrySearchRequest{
 		StartDate: startOfMonth.Format("2006-01-02"),
 		EndDate:   endOfMonth.Format("2006-01-02"),
+		PageSize:  3000,
 	}
 
 	b, err := json.Marshal(requestData)
