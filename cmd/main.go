@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/najeira/jpholiday"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -165,6 +166,14 @@ func main() {
 
 	// ソートされた日付キーを使用して結果を出力
 	for _, date := range dates {
+		dateTime, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			log.Printf("Error while parsing date: %v\n", err)
+		}
+		if isWeekendOrHoliday(dateTime) {
+			continue
+		}
+
 		tagSeconds := dateTagSeconds[date]
 
 		fmt.Println(strings.Repeat("=", 60))
@@ -209,4 +218,24 @@ func (c *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.SetBasicAuth(c.APIKey, "api_token")
 
 	return http.DefaultTransport.RoundTrip(req)
+}
+
+func isWeekendOrHoliday(date time.Time) bool {
+	// 土日のチェック
+	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		return true
+	}
+
+	// 祝日のチェック
+	day, err := time.Parse("2006-01-02", date.Format("2006-01-02"))
+	if err != nil {
+		log.Fatalf("Error while parsing date: %v", err)
+		return false
+	}
+	name := jpholiday.Name(day)
+	if name != "" {
+		return true
+	}
+
+	return false
 }
