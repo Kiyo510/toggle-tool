@@ -70,6 +70,9 @@ func main() {
 	}
 	now := time.Now().In(loc)
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+
+	// デフォルトは現在時刻なので、任意の日付を設定したいときはこっちを使う
+	//startOfMonth := time.Date(now.Year(), 2, 1, 0, 0, 0, 0, loc)
 	endOfMonth := startOfMonth.AddDate(0, 1, -1)
 	requestData := TimeEntrySearchRequest{
 		StartDate: startOfMonth.Format("2006-01-02"),
@@ -221,12 +224,12 @@ func (c *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func isWeekendOrHoliday(date time.Time) bool {
-	// 土日のチェック
+	// 土日チェック
 	if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		return true
 	}
 
-	// 祝日のチェック
+	// 祝日チェック
 	day, err := time.Parse("2006-01-02", date.Format("2006-01-02"))
 	if err != nil {
 		log.Fatalf("Error while parsing date: %v", err)
