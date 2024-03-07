@@ -72,7 +72,8 @@ func main() {
 	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 
 	// デフォルトは現在時刻なので、任意の日付を設定したいときはこっちを使う
-	//startOfMonth := time.Date(now.Year(), 2, 1, 0, 0, 0, 0, loc)
+	// 2月の日付を設定
+	// startOfMonth := time.Date(now.Year(), 2, 1, 0, 0, 0, 0, loc)
 	endOfMonth := startOfMonth.AddDate(0, 1, -1)
 	requestData := TimeEntrySearchRequest{
 		StartDate: startOfMonth.Format("2006-01-02"),
