@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,12 +69,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error loading location: %v", err)
 	}
-	now := time.Now().In(loc)
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 
-	// デフォルトは現在時刻なので、任意の日付を設定したいときはこっちを使う
-	// 2月の日付を設定
-	// startOfMonth := time.Date(now.Year(), 2, 1, 0, 0, 0, 0, loc)
+	// コマンドライン引数から年月を取得
+	year, month, err := parseMonthArgument(os.Args)
+	if err != nil {
+		log.Fatalf("Error parsing month argument: %v", err)
+	}
+
+	startOfMonth := time.Date(year, month, 1, 0, 0, 0, 0, loc)
 	endOfMonth := startOfMonth.AddDate(0, 1, -1)
 	requestData := TimeEntrySearchRequest{
 		StartDate: startOfMonth.Format("2006-01-02"),
@@ -222,6 +225,38 @@ func (c *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.SetBasicAuth(c.APIKey, "api_token")
 
 	return http.DefaultTransport.RoundTrip(req)
+}
+
+func parseMonthArgument(args []string) (int, time.Month, error) {
+	// 引数なしの場合は現在の年月を使用
+	if len(args) < 2 {
+		now := time.Now()
+		return now.Year(), now.Month(), nil
+	}
+
+	monthArg := args[1]
+	
+	// YYYY-MM形式で解析
+	parts := strings.Split(monthArg, "-")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid month format. Use YYYY-MM (e.g., 2025-06)")
+	}
+
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid year: %s", parts[0])
+	}
+
+	monthInt, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid month: %s", parts[1])
+	}
+
+	if monthInt < 1 || monthInt > 12 {
+		return 0, 0, fmt.Errorf("month must be between 1 and 12, got %d", monthInt)
+	}
+
+	return year, time.Month(monthInt), nil
 }
 
 func isWeekendOrHoliday(date time.Time) bool {
