@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -64,6 +65,10 @@ type TagsResponseItem struct {
 }
 
 func main() {
+	// フラグ定義
+	var outputFormat = flag.String("output", "", "Output format: 'json' for JSON output")
+	flag.Parse()
+
 	var WorkSpaceId = os.Getenv("WORKSPACE_ID")
 	loc, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil {
@@ -71,7 +76,7 @@ func main() {
 	}
 
 	// コマンドライン引数から年月を取得
-	year, month, err := parseMonthArgument(os.Args)
+	year, month, err := parseMonthArgument(flag.Args())
 	if err != nil {
 		log.Fatalf("Error parsing month argument: %v", err)
 	}
@@ -171,45 +176,91 @@ func main() {
 		return dates[i] < dates[j]
 	})
 
-	// ソートされた日付キーを使用して結果を出力
-	for _, date := range dates {
-		dateTime, err := time.Parse("2006-01-02", date)
-		if err != nil {
-			log.Printf("Error while parsing date: %v\n", err)
-		}
-		if isWeekendOrHoliday(dateTime) {
-			continue
-		}
-
-		tagSeconds := dateTagSeconds[date]
-
-		fmt.Println(strings.Repeat("=", 60))
-		fmt.Printf("Date: %s\n", date)
-		fmt.Println(strings.Repeat("=", 60))
-
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"Tag Name", "Hours"})
-		dailyTotalSeconds := 0
-
-		for tagID, seconds := range tagSeconds {
-			dailyTotalSeconds += seconds
-			hours := seconds / 3600
-			minutes := (seconds % 3600) / 60
-			seconds = seconds % 60
-			tagName, exists := tagIdNameMap[tagID]
-			if !exists {
-				tagName = "Unknown Tag"
+	if *outputFormat == "json" {
+		// JSON出力（順序保持）
+		result := make(map[string]map[string]string)
+		var orderedDays []string
+		
+		for _, date := range dates {
+			dateTime, err := time.Parse("2006-01-02", date)
+			if err != nil {
+				log.Printf("Error while parsing date: %v\n", err)
 			}
-			table.Append([]string{tagName, fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)})
+			if isWeekendOrHoliday(dateTime) {
+				continue
+			}
+
+			tagSeconds := dateTagSeconds[date]
+			
+			// 日付の日部分を取得
+			day := dateTime.Format("2")
+			result[day] = make(map[string]string)
+			orderedDays = append(orderedDays, day)
+
+			for tagID, seconds := range tagSeconds {
+				hours := seconds / 3600
+				minutes := (seconds % 3600) / 60
+				secs := seconds % 60
+				tagName, exists := tagIdNameMap[tagID]
+				if !exists {
+					tagName = "Unknown Tag"
+				}
+				result[day][tagName] = fmt.Sprintf("%d:%02d:%02d", hours, minutes, secs)
+			}
 		}
 
-		totalHours := dailyTotalSeconds / 3600
-		totalMinutes := (dailyTotalSeconds % 3600) / 60
-		totalSeconds := dailyTotalSeconds % 60
-		table.SetFooter([]string{"Total", fmt.Sprintf("%02d:%02d:%02d", totalHours, totalMinutes, totalSeconds)})
-		table.Render()
+		// 順序保持のため手動でJSONを構築
+		var jsonParts []string
+		for _, day := range orderedDays {
+			dayJSON, err := json.Marshal(result[day])
+			if err != nil {
+				log.Fatalf("JSON marshaling failed: %s", err)
+			}
+			jsonParts = append(jsonParts, fmt.Sprintf(`"%s":%s`, day, string(dayJSON)))
+		}
+		
+		fmt.Printf("{%s}\n", strings.Join(jsonParts, ","))
+	} else {
+		// 従来のテーブル出力
+		for _, date := range dates {
+			dateTime, err := time.Parse("2006-01-02", date)
+			if err != nil {
+				log.Printf("Error while parsing date: %v\n", err)
+			}
+			if isWeekendOrHoliday(dateTime) {
+				continue
+			}
+
+			tagSeconds := dateTagSeconds[date]
+
+			fmt.Println(strings.Repeat("=", 60))
+			fmt.Printf("Date: %s\n", date)
+			fmt.Println(strings.Repeat("=", 60))
+
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetHeader([]string{"Tag Name", "Hours"})
+			dailyTotalSeconds := 0
+
+			for tagID, seconds := range tagSeconds {
+				dailyTotalSeconds += seconds
+				hours := seconds / 3600
+				minutes := (seconds % 3600) / 60
+				seconds = seconds % 60
+				tagName, exists := tagIdNameMap[tagID]
+				if !exists {
+					tagName = "Unknown Tag"
+				}
+				table.Append([]string{tagName, fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)})
+			}
+
+			totalHours := dailyTotalSeconds / 3600
+			totalMinutes := (dailyTotalSeconds % 3600) / 60
+			totalSeconds := dailyTotalSeconds % 60
+			table.SetFooter([]string{"Total", fmt.Sprintf("%02d:%02d:%02d", totalHours, totalMinutes, totalSeconds)})
+			table.Render()
+		}
+		fmt.Println(strings.Repeat("=", 60))
 	}
-	fmt.Println(strings.Repeat("=", 60))
 }
 
 func NewToggleClient() *http.Client {
@@ -229,12 +280,12 @@ func (c *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func parseMonthArgument(args []string) (int, time.Month, error) {
 	// 引数なしの場合は現在の年月を使用
-	if len(args) < 2 {
+	if len(args) < 1 {
 		now := time.Now()
 		return now.Year(), now.Month(), nil
 	}
 
-	monthArg := args[1]
+	monthArg := args[0]
 	
 	// YYYY-MM形式で解析
 	parts := strings.Split(monthArg, "-")
